@@ -1,0 +1,6 @@
+# Maven build outputs and IDE metadata.
+target/
+.idea/
+.vscode/
+*.iml
+*.log

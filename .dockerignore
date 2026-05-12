@@ -1,0 +1,11 @@
+# Keep the Docker build context small and deterministic.
+.git
+.github
+.idea
+.vscode
+src
+README.md
+*.md
+*.log
+**/target/*
+!target/*.jar

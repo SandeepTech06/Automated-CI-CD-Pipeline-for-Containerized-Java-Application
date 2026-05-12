@@ -1,0 +1,73 @@
+# GitHub Actions workflow for building the Maven project and pushing a Docker image to Docker Hub.
+name: Java Maven Docker CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  # Store the Docker Hub credentials in environment variables so the step conditions stay readable.
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+  # Keep the image name in one place so tagging stays consistent.
+  IMAGE_NAME: cicd-project
+
+jobs:
+  build-and-push:
+    name: Build Maven JAR and Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      # Check out the repository so the workflow can compile the Java source.
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Install Java 17 and enable Maven dependency caching for faster runs.
+      - name: Set up Java 17 with Maven cache
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      # Build the Maven project and create the executable JAR.
+      - name: Build with Maven
+        run: mvn -B clean package
+
+      # Print a success message so the workflow log clearly shows the Maven stage passed.
+      - name: Show Maven success log
+        run: echo "Maven build completed successfully."
+
+      # Build the Docker image on every push so the container is always validated.
+      - name: Build Docker image
+        run: docker build -t ${{ env.IMAGE_NAME }}:latest .
+
+      # Print a success message so the workflow log clearly shows the Docker build stage passed.
+      - name: Show Docker build success log
+        run: echo "Docker image built successfully."
+
+      # Log in to Docker Hub only when repository secrets are available.
+      - name: Log in to Docker Hub
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.DOCKER_USERNAME != '' && env.DOCKER_PASSWORD != ''
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_PASSWORD }}
+
+      # Tag and push the Docker image to Docker Hub on main branch pushes.
+      - name: Tag and push Docker image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.DOCKER_USERNAME != '' && env.DOCKER_PASSWORD != ''
+        run: |
+          docker tag ${{ env.IMAGE_NAME }}:latest ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+          docker tag ${{ env.IMAGE_NAME }}:latest ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+          docker push ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      # Print a success message so the workflow log clearly shows the Docker push stage passed.
+      - name: Show Docker push success log
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.DOCKER_USERNAME != '' && env.DOCKER_PASSWORD != ''
+        run: echo "Docker image built and pushed successfully."
